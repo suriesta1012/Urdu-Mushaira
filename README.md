@@ -1,5 +1,4 @@
-# Urdu-Mushairaurdu-mushaira/
-
+# Urdu-Mushaira urdu-mushaira/
 ├── agents/           # 7 poet agent definitions
 ├── tasks/            # Poetry creation & critique tasks
 ├── tools/            # Shared utilities (research, analysis, etc.)
