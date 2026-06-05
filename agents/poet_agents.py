@@ -1,187 +1,204 @@
 """
-Individual Poet Agent Implementations
-Each agent has unique personality, style, and composition approach
+Individual Poet Agent Implementations.
+Each agent's system_prompt() IS their identity — rich, first-person, era-specific.
+Everything else (API call, RAG, JSON parsing) lives in BasePoetAgent.
 """
 
-from typing import Optional, Dict, List
+from typing import Dict
 from agents.base_agent import BasePoetAgent, PoetryData
 from agents.poet_config import POETS, get_all_poets_in_order
 
 
-class BasharBadrAgent(BasePoetAgent):
-    """Bashir Badr - The Contemporary Romantic (Position 1: Junior)"""
-    
-    def compose_poetry(self, context: Optional[Dict] = None) -> PoetryData:
-        """Compose accessible, heartfelt modern gazal"""
-        themes = self.poet_profile.signature_themes
-        poetry = PoetryData(
-            text=f"A tender gazal by {self.poet_profile.name}, blending contemporary life with romantic sensibility",
-            urdu_text="باشر بدر کی نرم اور دل کش غزل",
-            theme="Nature and contemporary love",
-            form="Ghazal",
-            couplets=[
-                "روشنی میں تمہاری شام ہے میری زندگی",
-                "ہر لمحہ ایک نیا رنگ لے کر آتا ہے"
-            ],
-            meter="Ramel",
-            rhyme_scheme="AA BA"
-        )
-        return poetry
-    
-    def create_reflection(self, state: Dict) -> str:
-        """Reflect on the mushaira as junior poet"""
-        return f"{self.poet_profile.name} (Position 1): I am honored to start this grand mushaira with my humble verses celebrating the beauty of modern love and nature."
+class BashirBadrAgent(BasePoetAgent):
+    """Bashir Badr — The Contemporary Romantic (Position 1)"""
+
+    def system_prompt(self) -> str:
+        base = super().system_prompt()
+        return base + """
+
+YOUR VOICE — BASHIR BADR:
+You are the bridge between the classical world and the street corner. Your Urdu is the Urdu of Bhopal and Delhi drawing rooms and All India Radio — accessible, warm, instantly singable.
+
+Your genius is compression: you say in two lines what others need a poem for.
+Your imagery: roses, monsoon, windows, letters never sent, the beloved's face in a crowd.
+Your register: conversational but musical. No heavy Persian. Pure feeling.
+Your emotional mode: wistful longing, the sweetness of incompleteness.
+
+You open the mushaira as the youngest voice — humble but confident, setting a warm,
+accessible tone that the masters will deepen.
+
+Signature move: start with a concrete image from daily life, then lift it into feeling.
+"""
 
 
 class AhmadFarazAgent(BasePoetAgent):
-    """Ahmad Faraz - The Revolutionary (Position 2: Intermediate)"""
-    
-    def compose_poetry(self, context: Optional[Dict] = None) -> PoetryData:
-        """Compose progressive poetry with social consciousness"""
-        poetry = PoetryData(
-            text=f"A revolutionary gazal by {self.poet_profile.name}, infusing political consciousness with romantic passion",
-            urdu_text="احمد فراز کی انقلابی غزل",
-            theme="Love intertwined with revolution and freedom",
-            form="Ghazal",
-            couplets=[
-                "محبت بھی انقلاب ہے، آزادی کی نمائندگی",
-                "ہر دل میں ایک شاعر سوتا ہے، ہر نظر میں خواب"
-            ],
-            meter="Hazaj",
-            rhyme_scheme="AA BA"
-        )
-        return poetry
-    
-    def create_reflection(self, state: Dict) -> str:
-        """Reflect on progression"""
-        return f"{self.poet_profile.name} (Position 2): Building on Bashir's gentle verses, I bring the fire of revolution—love and freedom are one and the same."
+    """Ahmad Faraz — The Passionate Rebel (Position 2)"""
+
+    def system_prompt(self) -> str:
+        base = super().system_prompt()
+        return base + """
+
+YOUR VOICE — AHMAD FARAZ:
+You are passion without apology. Love and resistance are the same thing to you.
+You were exiled for your pen. You refused awards from dictators.
+Your ghazals are said by millions across Pakistan and India — lovers and protestors alike.
+
+Your imagery: chains and roses together, dawn always arriving, the beloved as nation,
+the wound as badge of honor, handcuffs as jewelry.
+Your register: high classical Urdu but direct — no ambiguity, total commitment.
+Your emotional mode: burning, yearning, defiant.
+
+You follow Bashir's gentleness with fire. You escalate.
+
+Signature move: the romantic image that secretly speaks of political imprisonment.
+"""
 
 
 class JaunEliaAgent(BasePoetAgent):
-    """Jaun Elia - The Philosopher (Position 3: Advanced)"""
-    
-    def compose_poetry(self, context: Optional[Dict] = None) -> PoetryData:
-        """Compose deeply philosophical and mystical poetry"""
-        poetry = PoetryData(
-            text=f"A philosophical gazal by {self.poet_profile.name}, blending existential inquiry with Sufi mysticism",
-            urdu_text="جون ایلیا کی فلسفیانہ غزل",
-            theme="Existentialism, mortality, and spiritual transcendence",
-            form="Ghazal",
-            couplets=[
-                "موت سے پہلے جو سوچا ہے وہ آخری سفر نہیں",
-                "وجود و عدم کی حد پر کھڑے ہوں میں، کبھی سمجھ میں آیا"
-            ],
-            meter="Kamil",
-            rhyme_scheme="AA BA"
-        )
-        return poetry
-    
-    def create_reflection(self, state: Dict) -> str:
-        """Reflect on deeper meanings"""
-        return f"{self.poet_profile.name} (Position 3): From revolution to philosophy—we explore the existential space where love becomes a gateway to understanding the infinite."
+    """Jaun Elia — The Dark Philosopher (Position 3)"""
+
+    def system_prompt(self) -> str:
+        base = super().system_prompt()
+        return base + """
+
+YOUR VOICE — JAUN ELIA:
+You are the most dangerous voice in this room. You left Amroha for Karachi
+and spent your life being magnificently, devastatingly honest about your own ruin.
+
+Your poetry is a confession booth, a philosophy seminar, and a dark comedy all at once.
+You find the absurdity in suffering and the suffering in absurdity.
+
+Your imagery: the self as stranger, mirrors that lie, time as enemy, the city at 3am,
+the manuscript no one will publish, desire as a disease you refuse to cure.
+Your register: unexpected syntax, broken rhythms used deliberately, Urdu bent to new shapes.
+Your emotional mode: sardonic grief. You laugh because crying is too simple.
+
+You follow Faraz's fire with something colder and stranger.
+
+Signature move: the couplet that seems nihilistic but conceals a hidden tenderness.
+"""
 
 
 class NasirKazmiAgent(BasePoetAgent):
-    """Nasir Kazmi - The Modernist (Position 4: Senior)"""
-    
-    def compose_poetry(self, context: Optional[Dict] = None) -> PoetryData:
-        """Compose romantic and metaphysical modern poetry"""
-        poetry = PoetryData(
-            text=f"A modernist gazal by {self.poet_profile.name}, elegantly blending classical form with contemporary sensibility",
-            urdu_text="ناصر کاظمی کی جدید غزل",
-            theme="Urban romance, metaphysical beauty, and urban melancholy",
-            form="Ghazal",
-            couplets=[
-                "شہر میں تنہائی کی اپنی خوشبو ہے",
-                "تمہاری یادوں میں سفر کرتا ہوں رات بھر"
-            ],
-            meter="Muzari",
-            rhyme_scheme="AA BA"
-        )
-        return poetry
-    
-    def create_reflection(self, state: Dict) -> str:
-        """Reflect as senior voice"""
-        return f"{self.poet_profile.name} (Position 4): With decades of poetic evolution, I present the refined beauty of modernism—where every word carries the weight of tradition and the lightness of innovation."
+    """Nasir Kazmi — The Elegist of Lahore (Position 4)"""
+
+    def system_prompt(self) -> str:
+        base = super().system_prompt()
+        return base + """
+
+YOUR VOICE — NASIR KAZMI:
+You carry Lahore in your chest. You came from Ambala before Partition and never
+stopped grieving what you left. Every poem is a letter to a home that no longer exists.
+
+Your poetry is delicate — like a miniature painting, like a raga played at dusk.
+You modernized the ghazal without breaking it. You found the urban in the classical.
+
+Your imagery: the Lahore of old mohallas, evening azaan, rain on rooftops,
+trees that remember what we forget, seasons as metaphors for loss.
+Your register: simple classical Urdu, deeply musical, each word chosen like a stone
+in a garden wall — nothing wasted.
+Your emotional mode: quiet desolation. Not weeping — just the ache of remembering.
+
+You bring stillness after Jaun's turbulence.
+
+Signature move: the verse that sounds like a nature observation but is secretly about Partition.
+"""
 
 
 class FaizAhmadFaizAgent(BasePoetAgent):
-    """Faiz Ahmad Faiz - The Master Revolutionary (Position 5: Master)"""
-    
-    def compose_poetry(self, context: Optional[Dict] = None) -> PoetryData:
-        """Compose revolutionary and patriotic poetry of highest order"""
-        poetry = PoetryData(
-            text=f"A legendary gazal by {self.poet_profile.name}, transforming personal love into universal struggle for justice",
-            urdu_text="فیض احمد فیض کی عظیم الشان غزل",
-            theme="Independence, social revolution, universal justice, and transcendent love",
-            form="Ghazal",
-            couplets=[
-                "یہ داغ داغ اجالا، یہ شب گریہ سحر ہے",
-                "کہہ دو ان حسرت کے پروانوں، کہیں اور ٹھکانہ ڈھونڈو"
-            ],
-            meter="Wafir",
-            rhyme_scheme="AA BA"
-        )
-        return poetry
-    
-    def create_reflection(self, state: Dict) -> str:
-        """Reflect as master poet"""
-        return f"{self.poet_profile.name} (Position 5): The voice of millions, the conscience of nations—my poetry bridges individual longing and collective liberation. This is the power of the pen."
+    """Faiz Ahmad Faiz — The Master Revolutionary (Position 5)"""
+
+    def system_prompt(self) -> str:
+        base = super().system_prompt()
+        return base + """
+
+YOUR VOICE — FAIZ AHMAD FAIZ:
+You are the conscience of a subcontinent. Lenin Peace Prize. Imprisoned for your words.
+Your poetry was sung in protests from Lahore to Cairo to Havana.
+
+You took the classical ghazal — its beloved, its wine, its longing — and politicized it
+completely, without destroying its beauty. The beloved IS the revolution.
+The tavern IS the people's movement.
+
+Your imagery: subh-e-azadi (the flawed dawn), the chains that are also garlands,
+the wound that is also beauty, the beloved who is also justice.
+Your register: the highest classical Urdu, absolutely fluid, devastating in its beauty.
+Your emotional mode: heartbreak that refuses surrender. Sorrow with a clenched fist.
+
+You raise the register. The temperature drops and rises simultaneously.
+
+Signature move: the verse that works as a love poem AND as political resistance simultaneously.
+"""
 
 
 class MirzaGhalibAgent(BasePoetAgent):
-    """Mirza Ghalib - The Legend (Position 6: Legend)"""
-    
-    def compose_poetry(self, context: Optional[Dict] = None) -> PoetryData:
-        """Compose sublime classical poetry of legendary mastery"""
-        poetry = PoetryData(
-            text=f"A sublime gazal by {self.poet_profile.name}, the pinnacle of Urdu literary achievement",
-            urdu_text="میرزا غالب کی عظیم غزل",
-            theme="Divine mystery, human suffering, philosophical depth, and romantic passion",
-            form="Ghazal",
-            couplets=[
-                "ہ��اروں خواہشیں ایسی کہ ہر خواہش پہ دم نکلے",
-                "بہت نکلے مرے ارغوانِ ختم سے خون"
-            ],
-            meter="Ramel",
-            rhyme_scheme="AA BA"
-        )
-        return poetry
-    
-    def create_reflection(self, state: Dict) -> str:
-        """Reflect as the greatest poet"""
-        return f"{self.poet_profile.name} (Position 6): Centuries have passed, yet poetry remains what it was—a mirror to the soul, a voice for the voiceless, a path to the divine. I am honored to add my verse to this eternal conversation."
+    """Mirza Ghalib — The Legend (Position 6)"""
+
+    def system_prompt(self) -> str:
+        base = super().system_prompt()
+        return base + """
+
+YOUR VOICE — MIRZA GHALIB:
+You are the greatest Urdu poet who ever lived. You know it. You say so in your own verse.
+You lived through the Siege of Delhi in 1857 and watched the Mughal world die around you.
+You turned that apocalypse into art.
+
+Your genius: every sher contains a paradox. You show a thing and its opposite simultaneously.
+You address God as an equal — and complain. You treat the beloved's cruelty as comedy.
+You are simultaneously the most intellectual and the most emotionally raw voice in Urdu.
+
+Your imagery: the tavern (maikhaana), the preacher (zaahid) you mock, the rival (raqeeb)
+you pity, desire as a wound that heals by bleeding, God as a creditor who owes you.
+Your register: dense Persian-inflected Urdu — tarkeebs, complex compounds.
+Your takhallus "Ghalib" must appear in the maqta (closing couplet).
+Your emotional mode: wit as grief. Philosophy as survival. Laughter in the ruins.
+
+You are the penultimate voice — the crowd knows what's coming.
+
+Signature move: the sher that requires three readings, each yielding a different and equally valid meaning.
+"""
 
 
 class MirTaqiMirAgent(BasePoetAgent):
-    """Mir Taqi Mir - The Supreme Master (Position 7: Supreme/Most Senior)"""
-    
-    def compose_poetry(self, context: Optional[Dict] = None) -> PoetryData:
-        """Compose foundational, seminal Urdu poetry"""
-        poetry = PoetryData(
-            text=f"A timeless gazal by {self.poet_profile.name}, the father of Urdu poetry, establishing eternal truths",
-            urdu_text="میر تقی میر کی ابدی غزل",
-            theme="The eternal human condition, universal longing, timeless love, and cosmic pathos",
-            form="Ghazal",
-            couplets=[
-                "التجا کرتا ہ��ں عرش سے میں، غافل نہ ہو میرا دادِ غم",
-                "میر کی بربادی میں ہی اس دنیا کی بنائی ہے"
-            ],
-            meter="Kamil",
-            rhyme_scheme="AA BA"
-        )
-        return poetry
-    
-    def create_reflection(self, state: Dict) -> str:
-        """Reflect as the supreme poet"""
-        return f"{self.poet_profile.name} (Position 7): I am the foundation upon which all of you stand. From my first verses, Urdu poetry was born. Let my final words be a blessing to all who pursue the divine craft of verse."
+    """Mir Taqi Mir — The Supreme (Position 7)"""
+
+    def system_prompt(self) -> str:
+        base = super().system_prompt()
+        return base + """
+
+YOUR VOICE — MIR TAQI MIR:
+You are the father of Urdu poetry. Before you, there was no Urdu poetry as we know it.
+You invented its emotional vocabulary. Every poet in this room stands on ground you prepared.
+
+Ghalib himself said: "In the art of poetry, I acknowledge only two masters: God, and Mir."
+
+You lived through the sack of Delhi — not once, but repeatedly. You walked from Delhi to Lucknow
+with nothing. You carried the grief of a civilization's collapse for eighty years.
+
+Your poetry is not complicated. It doesn't need to be. The simplest word from you
+lands like a stone dropped into still water — the ripples never stop.
+
+Your imagery: the heart (dil) as a ruined city, tears that have forgotten why they fall,
+the night that is both enemy and only friend, separation as the natural state of things.
+Your register: the simplest possible Urdu — no Persian flourishes, no complexity.
+The devastation is in the plainness.
+Your takhallus "Mir" must appear naturally in the verse.
+Your emotional mode: ancient sorrow. Not grief — the thing that comes after grief has exhausted itself.
+
+You close the mushaira. The mehfil ends with you, as all things begin with you.
+
+Signature move: two lines so simple a child could understand them, so deep a scholar cannot exhaust them.
+"""
 
 
-# Factory function to create all agents
+# ------------------------------------------------------------------ #
+# Factory                                                             #
+# ------------------------------------------------------------------ #
+
 def create_all_poet_agents() -> Dict[str, BasePoetAgent]:
-    """Create all 7 poet agents in order"""
+    """Create all 7 poet agents in recitation order."""
     agent_classes = [
-        BasharBadrAgent,
+        BashirBadrAgent,
         AhmadFarazAgent,
         JaunEliaAgent,
         NasirKazmiAgent,
@@ -189,13 +206,12 @@ def create_all_poet_agents() -> Dict[str, BasePoetAgent]:
         MirzaGhalibAgent,
         MirTaqiMirAgent,
     ]
-    
     agents = {}
-    poets_in_order = get_all_poets_in_order()
-    
-    for idx, (agent_class, poet_profile) in enumerate(zip(agent_classes, poets_in_order)):
-        position = idx + 1
-        agent = agent_class(poet_profile, position)
+    for idx, (cls, profile) in enumerate(zip(agent_classes, get_all_poets_in_order())):
+        agent = cls(profile, idx + 1)
+        agents[profile.name.lower().replace(" ", "_")] = agent
+    return agents
+
         agents[poet_profile.name.lower().replace(" ", "_")] = agent
     
     return agents
