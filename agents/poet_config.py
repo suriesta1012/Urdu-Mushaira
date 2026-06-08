@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import List
 
-no_ofpoets=7
+no_of_poets=7
 
 class PoetRank(Enum):
     """Hierarchy level (1 = most junior, 7 = most senior)"""
@@ -17,7 +17,7 @@ class PoetRank(Enum):
     SENIOR = 4
     MASTER = 5
     LEGEND = 6
-    SUPREME = no_ofpoets
+    SUPREME = no_of_poets
 
 
 @dataclass
@@ -151,7 +151,7 @@ RECITATION_ORDER: List[str] = [
 
 def get_poet_by_position(position: int) -> PoetProfile:
     """Get poet profile by recitation position (1-7)"""
-    if 1 <= position <= 7:
+    if 1 <= position <= no_of_poets:
         poet_key = RECITATION_ORDER[position - 1]
         return POETS[poet_key]
     raise ValueError(f"Invalid position: {position}. Must be between 1 and 7.")
