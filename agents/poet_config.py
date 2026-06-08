@@ -7,6 +7,8 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import List
 
+no_ofpoets=7
+
 class PoetRank(Enum):
     """Hierarchy level (1 = most junior, 7 = most senior)"""
     JUNIOR = 1
@@ -15,7 +17,7 @@ class PoetRank(Enum):
     SENIOR = 4
     MASTER = 5
     LEGEND = 6
-    SUPREME = 7
+    SUPREME = no_ofpoets
 
 
 @dataclass
