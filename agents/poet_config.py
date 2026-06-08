@@ -158,3 +158,4 @@ def get_poet_by_position(position: int) -> PoetProfile:
 def get_all_poets_in_order() -> List[PoetProfile]:
     """Get all poets in recitation order"""
     return [POETS[key] for key in RECITATION_ORDER]
+
