@@ -9,3 +9,5 @@ class MushairaState(TypedDict):
     verses: List[dict]             # all PoetryData dicts accumulated so far
     status: str                    # "running" | "completed" | "failed"
     error: Optional[str]
+    retry_count:int
+    failed_poets:List[str]
