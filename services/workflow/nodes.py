@@ -21,8 +21,6 @@ def poet_turn_node(state: MushairaState) -> dict:
     On PoetCompositionError: marks the poet as failed in state and signals
     the edge to decide whether to skip or abort — does NOT raise.
     """
-    # nodes.py
-def poet_turn_node(state: MushairaState) -> dict:
     pos = state["current_position"]
     poet_key = RECITATION_ORDER[pos - 1]
     agent = agents[poet_key]
@@ -50,6 +48,8 @@ def poet_turn_node(state: MushairaState) -> dict:
         "retry_count": 0,
         "error": None,
     }
+    try:
+        
     except PoetCompositionError as e:
         return {
             "status": "failed",
