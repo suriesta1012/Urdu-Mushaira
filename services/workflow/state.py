@@ -11,3 +11,4 @@ class MushairaState(TypedDict):
     error: Optional[str]
     retry_count:int
     failed_poets:List[str]
+    poet_conversations: Dict[str, List[str]]
