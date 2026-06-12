@@ -21,26 +21,35 @@ def poet_turn_node(state: MushairaState) -> dict:
     On PoetCompositionError: marks the poet as failed in state and signals
     the edge to decide whether to skip or abort — does NOT raise.
     """
+    # nodes.py
+def poet_turn_node(state: MushairaState) -> dict:
     pos = state["current_position"]
     poet_key = RECITATION_ORDER[pos - 1]
     agent = agents[poet_key]
 
-    lf = get_langfuse_client()
-    try:
-        with lf.span(name=f"poet_turn_{agent.poet_profile.name}") as span:
-            verse = agent.compose_poetry(
-                theme=state["theme"],
-                all_verses=state["verses"],   # full arc — every sher so far
-            )
-            span.update(output=verse.__dict__)
+    # Read this poet's conversation history from graph state
+    poet_conversations = state.get("poet_conversations", {})
+    prior_responses = poet_conversations.get(poet_key, [])
 
-        return {
-            "verses": state["verses"] + [verse.__dict__],
-            "current_position": pos + 1,
-            "retry_count": 0,
-            "error": None,
-        }
+    verse, raw_response = agent.compose_poetry(
+        theme=state["theme"],
+        all_verses=state["verses"],
+        prior_responses=prior_responses,   # injected — agent doesn't own this
+    )
 
+    # Write the new response back into graph state
+    updated_conversations = {
+        **poet_conversations,
+        poet_key: prior_responses + [raw_response],   # append, never mutate
+    }
+
+    return {
+        "verses": state["verses"] + [verse.__dict__],
+        "poet_conversations": updated_conversations,  # graph owns the memory
+        "current_position": pos + 1,
+        "retry_count": 0,
+        "error": None,
+    }
     except PoetCompositionError as e:
         return {
             "status": "failed",
@@ -67,9 +76,7 @@ def finalize_node(state: MushairaState) -> dict:
     Closes the mushaira.  Resets agent memory so the next session starts fresh.
     A summary / closing reflection could be generated here.
     """
-    for agent in agents.values():
-        agent.reset_memory()
-
+    
     skipped = state.get("failed_poets", [])
     return {
         "status": "completed",
