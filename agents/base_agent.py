@@ -87,7 +87,7 @@ class BasePoetAgent:
         # Full multi-turn conversation for this poet across the mushaira.
         # Persists across calls so the poet "remembers" what they said
         # and what they heard from position 1 onwards.
-        self._conversation: List[Dict] = []
+         
 
     # ------------------------------------------------------------------ #
     # Override in each subclass                                            #
