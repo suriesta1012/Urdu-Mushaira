@@ -1,4 +1,4 @@
-from typing import TypedDict, List, Optional
+from typing import TypedDict, List, Optional,Dict
 from dataclasses import dataclass
 
 class MushairaState(TypedDict):
