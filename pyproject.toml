@@ -1,0 +1,15 @@
+[project]
+name = "urdu-mushaira"
+version = "0.1.0"
+description = "Multi-agent Urdu Mushaira powered by LangGraph"
+requires-python = ">=3.11"
+
+dependencies = [
+    "fastapi",
+    "uvicorn",
+    "langgraph",
+    "langchain",
+    "anthropic",
+    "pydantic",
+    "langfuse",
+]
