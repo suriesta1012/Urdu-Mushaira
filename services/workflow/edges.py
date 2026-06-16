@@ -6,16 +6,19 @@ MAX_SKIP = 2   # abort the whole mushaira if more than this many poets fail
 
 def should_continue(state: MushairaState) -> str:
     # All 7 positions completed successfully
-    if state["current_position"] > 7:
+    if state.status == WorkflowStatus.FAILED:
         return "end"
-
+    
+    # All poets have recited
+    if state.current_position > 7:
+        return "end"
+    
     # A poet just failed
-    if state.get("status") == "failed":
-        failed = state.get("failed_poets", [])
-        if len(failed) >= MAX_SKIP:
-            # Too many failures — abort rather than produce a hollow mushaira
-            return "end"
-        # Skip this poet and continue with the next
-        return "skip"
-
+    if state.failed_poets and state.current_position in state.failed_poets_positions:
+        # (you'd track which position each failed poet was at)
+        failed_count = len(state.failed_poets)
+        if failed_count >= MAX_SKIP:
+            return "end"  # Too many failures
+        return "skip"  # Skip this poet, continue
+    
     return "continue"
