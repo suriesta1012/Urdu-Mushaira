@@ -28,36 +28,37 @@ def poet_turn_node(state: MushairaState) -> dict:
     # Read this poet's conversation history from graph state
     poet_conversations = state.get("poet_conversations", {})
     prior_responses = poet_conversations.get(poet_key, [])
-
-    verse, raw_response = agent.compose_poetry(
-        theme=state["theme"],
-        all_verses=state["verses"],
-        prior_responses=prior_responses,   # injected — agent doesn't own this
-    )
-
-    # Write the new response back into graph state
-    updated_conversations = {
-        **poet_conversations,
-        poet_key: prior_responses + [raw_response],   # append, never mutate
-    }
-
-    return {
-        "verses": state["verses"] + [verse.__dict__],
-        "poet_conversations": updated_conversations,  # graph owns the memory
-        "current_position": pos + 1,
-        "retry_count": 0,
-        "error": None,
-    }
+    lf = get_langfuse_client()
     try:
-        
+        with lf.span(name=f"poet_turn_{agent.poet_profile.name}") as span:
+            verse, raw_response = agent.compose_poetry(
+                theme=state["theme"],
+                all_verses=state["verses"],
+                prior_responses=prior_responses,  # injected from state, not owned by agent
+            )
+            span.update(output=verse.__dict__)
+
+        # Write the new response back into graph state — graph owns the memory
+        updated_conversations = {
+            **poet_conversations,
+            poet_key: prior_responses + [raw_response],  # append, never mutate
+        }
+
+        return {
+            "verses": state["verses"] + [verse.__dict__],
+            "poet_conversations": updated_conversations,
+            "current_position": pos + 1,
+            "retry_count": 0,
+            "error": None,
+        }
+
     except PoetCompositionError as e:
         return {
             "status": "failed",
             "error": str(e),
             "failed_poets": state.get("failed_poets", []) + [agent.poet_profile.name],
-            # Do NOT advance current_position — the edge will decide to skip
+            # Do NOT advance current_position — the edge decides whether to skip
         }
-
 
 def skip_poet_node(state: MushairaState) -> dict:
     """
