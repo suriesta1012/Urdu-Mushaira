@@ -2,6 +2,15 @@ from typing import TypedDict, List, Optional,Dict
 from dataclasses import dataclass
 from pydantic import BaseModel
 
+class WorkflowStatus(str, Enum):
+    RUNNING = "running"
+    COMPLETED = "completed"
+    FAILED = "failed"  # Unrecoverable (too many poets failed)
+
+class PoetStatus(str, Enum):
+    SUCCESS = "success"
+    FAILED = "failed"  # Will be skipped
+    SKIPPED = "skipped"
 class MushairaState(BaseModel):
     session_id: str
     theme: str
