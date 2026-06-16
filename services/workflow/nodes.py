@@ -28,36 +28,50 @@ def poet_turn_node(state: MushairaState) -> dict:
     # Read this poet's conversation history from graph state
     poet_conversations = state.get("poet_conversations", {})
     prior_responses = poet_conversations.get(poet_key, [])
-    lf = get_langfuse_client()
+    
     try:
-        with lf.span(name=f"poet_turn_{agent.poet_profile.name}") as span:
-            verse, raw_response = agent.compose_poetry(
-                theme=state["theme"],
-                all_verses=state["verses"],
-                prior_responses=prior_responses,  # injected from state, not owned by agent
-            )
-            span.update(output=verse.__dict__)
-
-        # Write the new response back into graph state — graph owns the memory
+        verse, raw_response = agent.compose_poetry(
+            theme=state.theme,
+            all_verses=state.verses,
+            prior_responses=prior_responses,
+        )
+        
         updated_conversations = {
-            **poet_conversations,
-            poet_key: prior_responses + [raw_response],  # append, never mutate
+            **state.poet_conversations,
+            poet_key: prior_responses + [raw_response],
         }
-
+        
         return {
-            "verses": state["verses"] + [verse.__dict__],
+            "verses": state.verses + [verse.__dict__],
             "poet_conversations": updated_conversations,
             "current_position": pos + 1,
-            "retry_count": 0,
-            "error": None,
+            "current_poet_retry_count": 0,
+            "status": WorkflowStatus.RUNNING,
+            "workflow_error": None,
+            "failed_poets": state.failed_poets,
+            "skipped_poets": state.skipped_poets,
+            "poet_errors": state.poet_errors,
+            "session_id": state.session_id,
+            "theme": state.theme,
         }
-
     except PoetCompositionError as e:
+        # Record the error but don't advance position
+        new_errors = {**state.poet_errors, agent.poet_profile.name: str(e)}
+        new_failed = state.failed_poets + [agent.poet_profile.name]
+        
         return {
-            "status": "failed",
-            "error": str(e),
-            "failed_poets": state.get("failed_poets", []) + [agent.poet_profile.name],
-            # Do NOT advance current_position — the edge decides whether to skip
+            "status": WorkflowStatus.RUNNING,  # Still running — decision happens in edge
+            "workflow_error": None,  # Not a workflow crash
+            "failed_poets": new_failed,
+            "poet_errors": new_errors,
+            "current_position": pos,  # DO NOT advance
+            "current_poet_retry_count": 0,
+            # Preserve everything
+            "verses": state.verses,
+            "poet_conversations": state.poet_conversations,
+            "skipped_poets": state.skipped_poets,
+            "session_id": state.session_id,
+            "theme": state.theme,
         }
 
 def skip_poet_node(state: MushairaState) -> dict:
