@@ -1,7 +1,8 @@
 from typing import TypedDict, List, Optional,Dict
 from dataclasses import dataclass
+from pydantic import BaseModel
 
-class MushairaState(TypedDict):
+class MushairaState(BaseModel):
     session_id: str
     theme: str
     current_position: int          # 1–7, which poet's turn
