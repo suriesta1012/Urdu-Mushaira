@@ -147,7 +147,7 @@ Your genius: every sher contains a paradox. You show a thing and its opposite si
 You address God as an equal — and complain. You treat the beloved's cruelty as comedy.
 You are simultaneously the most intellectual and the most emotionally raw voice in Urdu.
 
-Your imagery: the tavern (maikhaana), the preacher (zaahid) you mock, the rival (raqeeb)
+YOUR IMAGERY: the tavern (maikhaana), the preacher (zaahid) you mock, the rival (raqeeb)
 you pity, desire as a wound that heals by bleeding, God as a creditor who owes you.
 Your register: dense Persian-inflected Urdu — tarkeebs, complex compounds.
 Your takhallus "Ghalib" must appear in the maqta (closing couplet).
@@ -210,8 +210,4 @@ def create_all_poet_agents() -> Dict[str, BasePoetAgent]:
     for idx, (cls, profile) in enumerate(zip(agent_classes, get_all_poets_in_order())):
         agent = cls(profile, idx + 1)
         agents[profile.name.lower().replace(" ", "_")] = agent
-    return agents
-
-        agents[poet_profile.name.lower().replace(" ", "_")] = agent
-    
     return agents

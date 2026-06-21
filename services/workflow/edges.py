@@ -1,22 +1,23 @@
 
-from services.workflow.state import MushairaState
+from services.workflow.state import MushairaState, WorkflowStatus
 from langgraph.checkpoint.memory import MemorySaver
+
 MAX_SKIP = 2   # abort the whole mushaira if more than this many poets fail
 
 
 def should_continue(state: MushairaState) -> str:
-    # All 7 positions completed successfully
-    if state.status == WorkflowStatus.FAILED:
+    # Check if workflow was explicitly failed
+    if state.get("status") == WorkflowStatus.FAILED:
         return "end"
     
     # All poets have recited
-    if state.current_position > 7:
+    if state["current_position"] > 7:
         return "end"
     
-    # A poet just failed
-    if state.failed_poets and state.current_position in state.failed_poets_positions:
-        # (you'd track which position each failed poet was at)
-        failed_count = len(state.failed_poets)
+    # A poet just failed (current_position is still at the failing poet)
+    failed_poets_positions = state.get("failed_poets_positions", [])
+    if state["current_position"] in failed_poets_positions:
+        failed_count = len(state.get("failed_poets", []))
         if failed_count >= MAX_SKIP:
             return "end"  # Too many failures
         return "skip"  # Skip this poet, continue

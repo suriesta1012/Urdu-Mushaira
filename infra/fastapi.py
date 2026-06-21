@@ -22,7 +22,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from services.workflow.graph import build_graph
-from services.workflow.state import MushairaState
+from services.workflow.state import MushairaState, WorkflowStatus
 from infra.langfuse import trace_mushaira_session
 
 app = FastAPI(title="Urdu Mushaira API")
@@ -64,10 +64,14 @@ def _initial_state(session_id: str, theme: str) -> MushairaState:
         "theme": theme,
         "current_position": 1,
         "verses": [],
-        "status": "running",
+        "status": WorkflowStatus.RUNNING,
         "error": None,
-        "retry_count": 0,
         "failed_poets": [],
+        "poet_conversations": {},
+        "poet_errors": {},
+        "skipped_poets": [],
+        "failed_poets_positions": [],
+        "current_poet_retry_count": 0,
     }
 
 
@@ -107,11 +111,11 @@ async def stream_mushaira(req: MushairaRequest):
 
                 elif "skip_poet" in chunk:
                     node_out = chunk["skip_poet"]
-                    failed = node_out.get("failed_poets", [])
-                    if failed:
+                    skipped = node_out.get("skipped_poets", [])
+                    if skipped:
                         payload = json.dumps({
                             "event": "skip",
-                            "poet": failed[-1],
+                            "poet": skipped[-1],
                         })
                         yield f"data: {payload}\n\n"
 
@@ -196,4 +200,3 @@ async def _run_mushaira_background(session_id: str, theme: str):
 @app.get("/health")
 def health():
     return {"status": "ok"}
-
