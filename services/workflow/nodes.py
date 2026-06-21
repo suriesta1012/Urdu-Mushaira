@@ -5,12 +5,7 @@ Graph nodes for the Urdu Mushaira workflow.
 from agents.poet_agents import create_all_poet_agents
 from agents.base_agent import PoetCompositionError
 from agents.poet_config import RECITATION_ORDER
-from infra.langfuse import get_langfuse_client
-from services.workflow.state import MushairaState
-
-# Agents are module-level singletons so their _conversation memory persists
-# across the whole mushaira session (reset between sessions via reset_memory()).
-agents = create_all_poet_agents()
+from services.workflow.state import MushairaState, WorkflowStatus
 
 
 def poet_turn_node(state: MushairaState) -> dict:
@@ -23,6 +18,9 @@ def poet_turn_node(state: MushairaState) -> dict:
     """
     pos = state["current_position"]
     poet_key = RECITATION_ORDER[pos - 1]
+
+    # Create agents locally to ensure session isolation
+    agents = create_all_poet_agents()
     agent = agents[poet_key]
 
     # Read this poet's conversation history from graph state
@@ -30,48 +28,41 @@ def poet_turn_node(state: MushairaState) -> dict:
     prior_responses = poet_conversations.get(poet_key, [])
     
     try:
-        verse, raw_response = agent.compose_poetry(
-            theme=state.theme,
-            all_verses=state.verses,
-            prior_responses=prior_responses,
+        verse, raw_response, user_message = agent.compose_poetry(
+            theme=state["theme"],
+            all_verses=state["verses"],
+            conversation_history=prior_responses,
         )
         
+        # Build update to the conversation history
+        new_history = prior_responses + [
+            {"role": "user", "content": user_message},
+            {"role": "assistant", "content": raw_response}
+        ]
+
         updated_conversations = {
-            **state.poet_conversations,
-            poet_key: prior_responses + [raw_response],
+            **state.get("poet_conversations", {}),
+            poet_key: new_history,
         }
         
         return {
-            "verses": state.verses + [verse.__dict__],
+            "verses": [verse.__dict__], # reducer will add to list
             "poet_conversations": updated_conversations,
             "current_position": pos + 1,
             "current_poet_retry_count": 0,
             "status": WorkflowStatus.RUNNING,
-            "workflow_error": None,
-            "failed_poets": state.failed_poets,
-            "skipped_poets": state.skipped_poets,
-            "poet_errors": state.poet_errors,
-            "session_id": state.session_id,
-            "theme": state.theme,
         }
     except PoetCompositionError as e:
         # Record the error but don't advance position
-        new_errors = {**state.poet_errors, agent.poet_profile.name: str(e)}
-        new_failed = state.failed_poets + [agent.poet_profile.name]
+        poet_name = agent.poet_profile.name
+        new_errors = {**state.get("poet_errors", {}), poet_name: str(e)}
         
         return {
-            "status": WorkflowStatus.RUNNING,  # Still running — decision happens in edge
-            "workflow_error": None,  # Not a workflow crash
-            "failed_poets": new_failed,
+            "failed_poets": [poet_name], # reducer will add to list
+            "failed_poets_positions": [pos], # reducer will add to list
             "poet_errors": new_errors,
-            "current_position": pos,  # DO NOT advance
             "current_poet_retry_count": 0,
-            # Preserve everything
-            "verses": state.verses,
-            "poet_conversations": state.poet_conversations,
-            "skipped_poets": state.skipped_poets,
-            "session_id": state.session_id,
-            "theme": state.theme,
+            "status": WorkflowStatus.RUNNING,
         }
 
 def skip_poet_node(state: MushairaState) -> dict:
@@ -79,21 +70,18 @@ def skip_poet_node(state: MushairaState) -> dict:
     Called when a poet has failed and the edge has decided to skip them.
     Advances position so the mushaira continues with the next poet.
     """
+    poet_key = RECITATION_ORDER[state["current_position"] - 1]
     return {
         "current_position": state["current_position"] + 1,
-        "status": "running",
-        "retry_count": 0,
+        "skipped_poets": [poet_key], # reducer will add to list
+        "status": WorkflowStatus.RUNNING,
     }
 
 
 def finalize_node(state: MushairaState) -> dict:
     """
-    Closes the mushaira.  Resets agent memory so the next session starts fresh.
-    A summary / closing reflection could be generated here.
+    Closes the mushaira.
     """
-    
-    skipped = state.get("failed_poets", [])
     return {
-        "status": "completed",
-        "error": f"Skipped poets: {skipped}" if skipped else None,
+        "status": WorkflowStatus.COMPLETED,
     }

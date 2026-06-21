@@ -5,8 +5,7 @@ This is the bridge between poet_config.py (who the poet IS)
 and the actual Anthropic API call (what the poet SAYS).
 
 Key design:
-  - Each poet holds a _conversation list that accumulates across the
-    entire mushaira round (full multi-turn memory).
+  - Each poet is stateless; conversation history is passed in from the graph state.
   - compose_poetry() receives ALL verses recited so far so the poet
     can engage in genuine literary conversation, not just react to
     the immediately preceding sher.
@@ -19,7 +18,7 @@ Key design:
 import json
 import time
 from dataclasses import dataclass, field
-from typing import Optional, Dict, List
+from typing import Optional, Dict, List, Tuple
 from anthropic import Anthropic
 
 from agents.poet_config import PoetProfile
@@ -84,10 +83,6 @@ class BasePoetAgent:
         self.poet_profile = poet_profile
         self.position = position
         self.retriever = None           # injected if RAG is enabled
-        # Full multi-turn conversation for this poet across the mushaira.
-        # Persists across calls so the poet "remembers" what they said
-        # and what they heard from position 1 onwards.
-         
 
     # ------------------------------------------------------------------ #
     # Override in each subclass                                            #
@@ -138,18 +133,20 @@ ABSOLUTE RULES:
         self,
         theme: str,
         all_verses: List[Dict],   # full list of PoetryData dicts so far
+        conversation_history: List[Dict], # messages from graph state
         max_retries: int = 3,
-    ) -> PoetryData:
+    ) -> Tuple[PoetryData, str, str]:
         """
         Main entry point. Called by the graph node for each poet's turn.
 
         Args:
             theme:       The mushaira theme (e.g. "ishq aur judai")
             all_verses:  Every verse recited so far (full mushaira arc)
+            conversation_history: Prior turns for THIS poet
             max_retries: Retries on JSON parse failure
 
         Returns:
-            PoetryData with all fields populated
+            Tuple of (PoetryData, raw_json_response, user_message)
 
         Raises:
             PoetCompositionError on terminal failure (graph can route on this)
@@ -165,10 +162,8 @@ ABSOLUTE RULES:
 
         user_message = self._build_user_message(theme, all_verses, retrieved)
 
-        # Append the new user turn to the running conversation history.
-        # This means on the *next* call (if this poet ever speaks again)
-        # they will have their own prior turns in context too.
-        self._conversation.append({"role": "user", "content": user_message})
+        # Build messages for the API call
+        messages = conversation_history + [{"role": "user", "content": user_message}]
 
         last_exc: Exception = Exception("unknown")
         for attempt in range(max_retries):
@@ -177,9 +172,7 @@ ABSOLUTE RULES:
                     model="claude-sonnet-4-20250514",
                     max_tokens=1200,
                     system=self.system_prompt(),
-                    # Pass the full accumulated conversation — the poet
-                    # sees everything they have heard and said this evening.
-                    messages=self._conversation,
+                    messages=messages,
                 )
                 raw = response.content[0].text.strip()
                 data = self._parse_response(raw)
@@ -187,23 +180,14 @@ ABSOLUTE RULES:
                 data.poet_urdu_name = self.poet_profile.urdu_name
                 data.retrieved_context = retrieved
 
-                # Commit the assistant's turn into memory
-                self._conversation.append({"role": "assistant", "content": raw})
-                return data
+                return data, raw, user_message
 
             except (json.JSONDecodeError, KeyError, ValueError) as e:
                 last_exc = e
                 if attempt < max_retries - 1:
                     time.sleep(2 ** attempt)  # 1s, 2s backoff
 
-        # All retries exhausted — pop the failed user message so the
-        # conversation history stays clean for potential future use
-        self._conversation.pop()
         raise PoetCompositionError(self.poet_profile.name, max_retries, last_exc)
-
-    def reset_memory(self) -> None:
-        """Clear conversation history (call between mushaira sessions)."""
-        self._conversation = []
 
     # ------------------------------------------------------------------ #
     # Private helpers                                                      #
@@ -278,4 +262,3 @@ ABSOLUTE RULES:
 
     def _poet_id(self) -> str:
         return self.poet_profile.name.lower().replace(" ", "_")
-
