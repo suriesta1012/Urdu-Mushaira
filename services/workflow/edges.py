@@ -11,7 +11,7 @@ def should_continue(state: MushairaState) -> str:
         return "end"
     
     # All poets have recited
-    if state["current_position"] > 7:
+    if state["current_position"] > len(RECITATION_ORDER):
         return "end"
     
     # A poet just failed (current_position is still at the failing poet)
