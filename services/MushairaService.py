@@ -19,10 +19,15 @@ class MushairaService:
             "session_id": session_id,
             "theme": theme,
             "current_position": 1,
-            "previous_sher": None,
             "verses": [],
             "status": "running",
             "error": None,
+            "failed_poets": [],
+            "poet_conversations": {},
+            "poet_errors": {},
+            "skipped_poets": [],
+            "failed_poets_positions": [],
+            "current_poet_retry_count": 0,
         }
 
         try:
