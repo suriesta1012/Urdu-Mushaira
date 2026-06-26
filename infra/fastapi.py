@@ -72,6 +72,10 @@ def _initial_state(session_id: str, theme: str) -> MushairaState:
         "skipped_poets": [],
         "failed_poets_positions": [],
         "current_poet_retry_count": 0,
+        "draft_verse": None,
+        "pending_poet_key": None,
+        "validation_passed": False,
+        "validation_error": None,
     }
 
 
@@ -95,20 +99,20 @@ async def stream_mushaira(req: MushairaRequest):
     trace = trace_mushaira_session(session_id, req.theme)
     graph = build_graph()   # fresh graph per session so memory is isolated
 
-    async def event_generator():
+      async def event_generator():
         state = _initial_state(session_id, req.theme)
         try:
             # astream yields {"node_name": updated_state_slice} after each node
             async for chunk in graph.astream(state):
-                if "poet_turn" in chunk:
-                    node_out = chunk["poet_turn"]
+                if "accept_verse" in chunk:
+                    node_out = chunk["accept_verse"]
                     verses = node_out.get("verses", [])
                     if verses:
                         latest = verses[-1]
                         payload = json.dumps({"event": "verse", "data": latest})
                         yield f"data: {payload}\n\n"
                         await asyncio.sleep(0)   # yield control to event loop
-
+ 
                 elif "skip_poet" in chunk:
                     node_out = chunk["skip_poet"]
                     skipped = node_out.get("skipped_poets", [])
@@ -118,15 +122,15 @@ async def stream_mushaira(req: MushairaRequest):
                             "poet": skipped[-1],
                         })
                         yield f"data: {payload}\n\n"
-
+ 
             # Graph finished
             trace.update(output={"session_id": session_id})
             yield f"data: {json.dumps({'event': 'done', 'status': 'completed'})}\n\n"
-
+ 
         except Exception as e:
             trace.update(level="ERROR", status_message=str(e))
             yield f"data: {json.dumps({'event': 'error', 'detail': str(e)})}\n\n"
-
+ 
     return StreamingResponse(
         event_generator(),
         media_type="text/event-stream",
@@ -135,8 +139,7 @@ async def stream_mushaira(req: MushairaRequest):
             "X-Accel-Buffering": "no",   # disable nginx buffering
         },
     )
-
-
+ 
 # ------------------------------------------------------------------ #
 # Route 2 — Background task + polling                                  #
 # ------------------------------------------------------------------ #
@@ -179,7 +182,7 @@ async def _run_mushaira_background(session_id: str, theme: str):
     try:
         # Run in a thread so the blocking LangGraph .invoke() doesn't stall
         # the asyncio event loop
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         final_state = await loop.run_in_executor(None, graph.invoke, state)
         _sessions[session_id].update({
             "verses": final_state.get("verses", []),
@@ -191,8 +194,7 @@ async def _run_mushaira_background(session_id: str, theme: str):
     except Exception as e:
         _sessions[session_id].update({"status": "failed", "error": str(e)})
         trace.update(level="ERROR", status_message=str(e))
-
-
+ 
 # ------------------------------------------------------------------ #
 # Health                                                               #
 # ------------------------------------------------------------------ #
