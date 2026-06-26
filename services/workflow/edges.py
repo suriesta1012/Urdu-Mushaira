@@ -1,14 +1,14 @@
 
 from services.workflow.state import MushairaState, WorkflowStatus
-
+from agents.poet_config import RECITATION_ORDER
 
 MAX_SKIP = 2   # abort the whole mushaira if more than this many poets fail
 
 MAX_POET_ATTEMPTS=3
 
-def _can_get_current_poet_again(state: MushairaState) -> bool:
+def _can_try_current_poet_again(state: MushairaState) -> bool:
     
-    return state.get("current_poet_retry_count", 0) < MAX_POET_ATTEMPTS
+      return state.get("current_poet_retry_count", 0) < MAX_POET_ATTEMPTS
 
 
 def route_after_poet_turn(state: MushairaState) -> str:
@@ -44,7 +44,7 @@ def route_after_position_advance(state: MushairaState) -> str:
     if state["current_position"] > len(RECITATION_ORDER):
         return "end"
 
-    if len(state.get("failed_poets", [])) > MAX_SKIP:
+    if len(state.get("failed_poets", [])) >= MAX_SKIP:
         return "end"
 
     return "continue" 
