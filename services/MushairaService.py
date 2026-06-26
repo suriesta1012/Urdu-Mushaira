@@ -28,6 +28,10 @@ class MushairaService:
             "skipped_poets": [],
             "failed_poets_positions": [],
             "current_poet_retry_count": 0,
+            "draft_verse": None,
+            "pending_poet_key": None,
+            "validation_passed": False,
+            "validation_error": None,
         }
 
         try:
