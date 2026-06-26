@@ -60,12 +60,12 @@ def poet_turn_node(state: MushairaState) -> dict:
     
     try:
         verse, raw_response, user_message = agent.compose_poetry(
-            theme=state["theme"],
-            all_verses=state["verses"],
+            theme=state.get("theme", ""),
+            all_verses=state.get("verses", []),
             conversation_history=prior_responses,
             max_retries=1,
         )
-        
+
         # Build update to the conversation history
         new_history = prior_responses + [
             {"role": "user", "content": user_message},
@@ -76,21 +76,25 @@ def poet_turn_node(state: MushairaState) -> dict:
             **state.get("poet_conversations", {}),
             poet_key: new_history,
         }
-        
+
+        # draft_verse as dict form
+        draft_dict = verse.__dict__ if hasattr(verse, "__dict__") else dict(verse)
+
         return {
-            "draft_verse": verse.__dict__,
+            "draft_verse": draft_dict,
             "pending_poet_key": poet_key,
             "validation_passed": False,
             "validation_error": None,
             "error": None,
             "poet_conversations": updated_conversations,
+            # do not increment retry count here on success
             "current_poet_retry_count": 0,
             "status": WorkflowStatus.RUNNING,
         }
     except PoetCompositionError as e:
         poet_name = agent.poet_profile.name
         new_errors = {**state.get("poet_errors", {}), poet_name: str(e)}
-        
+
         return {
             "draft_verse": None,
             "pending_poet_key": poet_key,
