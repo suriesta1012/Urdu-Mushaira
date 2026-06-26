@@ -25,3 +25,8 @@ class MushairaState(TypedDict):
     skipped_poets: Annotated[List[str], operator.add]
     failed_poets_positions: Annotated[List[int], operator.add]
     current_poet_retry_count: int
+    draft_verse: Optional[dict]
+    pending_poet_key: Optional[str]
+    validation_passed: bool
+    validation_error: Optional[str]
+ 
