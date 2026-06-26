@@ -229,23 +229,3 @@ def finalize_node(state: MushairaState) -> dict:
             "status": WorkflowStatus.RUNNING,
         }
 
-def skip_poet_node(state: MushairaState) -> dict:
-    """
-    Called when a poet has failed and the edge has decided to skip them.
-    Advances position so the mushaira continues with the next poet.
-    """
-    poet_key = RECITATION_ORDER[state["current_position"] - 1]
-    return {
-        "current_position": state["current_position"] + 1,
-        "skipped_poets": [poet_key], # reducer will add to list
-        "status": WorkflowStatus.RUNNING,
-    }
-
-
-def finalize_node(state: MushairaState) -> dict:
-    """
-    Closes the mushaira.
-    """
-    return {
-        "status": WorkflowStatus.COMPLETED,
-    }
