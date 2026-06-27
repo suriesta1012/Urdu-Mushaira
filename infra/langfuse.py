@@ -1,5 +1,7 @@
 from langfuse import Langfuse
 import os
+from dotenv import load_dotenv 
+load_dotenv()
 
 _client: Langfuse | None = None
 
