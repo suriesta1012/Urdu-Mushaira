@@ -2,7 +2,8 @@
 name = "urdu-mushaira"
 version = "0.1.0"
 description = "Multi-agent Urdu Mushaira powered by LangGraph"
-requires-python  python = ">=3.11,<4.0"
+requires-python = ">=3.11,<4.0"
+
 
 
 dependencies = [
