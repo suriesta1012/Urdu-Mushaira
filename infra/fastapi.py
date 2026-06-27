@@ -15,7 +15,7 @@ Two ways to consume:
 import asyncio
 import json
 import uuid
-from typing import Dict
+from typing import Dict, Any
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import StreamingResponse
@@ -28,11 +28,11 @@ from infra.langfuse import trace_mushaira_session
 app = FastAPI(title="Urdu Mushaira API")
 
 # In-memory session store (replace with Redis / DB in production)
-_sessions: Dict[str, dict] = {}
+_sessions: Dict[str, Dict[str, Any]] = {}
 
 
 # ------------------------------------------------------------------ #
-# Request / response models                                            #
+# Request / response models                                          #
 # ------------------------------------------------------------------ #
 
 class MushairaRequest(BaseModel):
@@ -55,10 +55,15 @@ class MushairaStatusResponse(BaseModel):
 
 
 # ------------------------------------------------------------------ #
-# Helpers                                                              #
+# Helpers                                                            #
 # ------------------------------------------------------------------ #
 
 def _initial_state(session_id: str, theme: str) -> MushairaState:
+    """
+    Initial graph state. Use WorkflowStatus enum values for the graph runtime.
+    Node-specific fields used by the workflow are included here so nodes can
+    read/write them without KeyError.
+    """
     return {
         "session_id": session_id,
         "theme": theme,
@@ -72,6 +77,7 @@ def _initial_state(session_id: str, theme: str) -> MushairaState:
         "skipped_poets": [],
         "failed_poets_positions": [],
         "current_poet_retry_count": 0,
+        # Node-specific fields
         "draft_verse": None,
         "pending_poet_key": None,
         "validation_passed": False,
@@ -79,9 +85,17 @@ def _initial_state(session_id: str, theme: str) -> MushairaState:
     }
 
 
+def _status_to_str(status_value) -> str:
+    """Convert WorkflowStatus enum or string-like status to plain string for HTTP responses."""
+    try:
+        return status_value.value  # enum
+    except Exception:
+        return str(status_value)
+
+
 # ------------------------------------------------------------------ #
-# Route 1 — Server-Sent Events streaming                               #
-# Each verse is emitted the moment it is composed.                    #
+# Route 1 — Server-Sent Events streaming                             #
+# Each verse is emitted the moment it is composed.                   #
 # ------------------------------------------------------------------ #
 
 @app.post("/mushaira/stream")
@@ -99,11 +113,15 @@ async def stream_mushaira(req: MushairaRequest):
     trace = trace_mushaira_session(session_id, req.theme)
     graph = build_graph()   # fresh graph per session so memory is isolated
 
-      async def event_generator():
+    async def event_generator():
+        # Initialize graph state for this session
         state = _initial_state(session_id, req.theme)
         try:
             # astream yields {"node_name": updated_state_slice} after each node
+            # Verses are only committed (made visible) in the accept_verse node;
+            # stream from accept_verse so clients receive complete verses.
             async for chunk in graph.astream(state):
+                # When accept_verse runs it emits the updated verses list
                 if "accept_verse" in chunk:
                     node_out = chunk["accept_verse"]
                     verses = node_out.get("verses", [])
@@ -111,8 +129,9 @@ async def stream_mushaira(req: MushairaRequest):
                         latest = verses[-1]
                         payload = json.dumps({"event": "verse", "data": latest})
                         yield f"data: {payload}\n\n"
-                        await asyncio.sleep(0)   # yield control to event loop
- 
+                        # yield control so the event loop can schedule other tasks
+                        await asyncio.sleep(0)
+
                 elif "skip_poet" in chunk:
                     node_out = chunk["skip_poet"]
                     skipped = node_out.get("skipped_poets", [])
@@ -122,15 +141,24 @@ async def stream_mushaira(req: MushairaRequest):
                             "poet": skipped[-1],
                         })
                         yield f"data: {payload}\n\n"
- 
-            # Graph finished
-            trace.update(output={"session_id": session_id})
+
+            # Graph finished successfully
+            try:
+                trace.update(output={"session_id": session_id})
+            except Exception:
+                # tracing is best-effort
+                pass
+
             yield f"data: {json.dumps({'event': 'done', 'status': 'completed'})}\n\n"
- 
+
         except Exception as e:
-            trace.update(level="ERROR", status_message=str(e))
+            # Capture error in trace and stream an error event to client
+            try:
+                trace.update(level="ERROR", status_message=str(e))
+            except Exception:
+                pass
             yield f"data: {json.dumps({'event': 'error', 'detail': str(e)})}\n\n"
- 
+
     return StreamingResponse(
         event_generator(),
         media_type="text/event-stream",
@@ -139,9 +167,10 @@ async def stream_mushaira(req: MushairaRequest):
             "X-Accel-Buffering": "no",   # disable nginx buffering
         },
     )
- 
+
+
 # ------------------------------------------------------------------ #
-# Route 2 — Background task + polling                                  #
+# Route 2 — Background task + polling                                #
 # ------------------------------------------------------------------ #
 
 @app.post("/mushaira", response_model=MushairaStartResponse)
@@ -151,11 +180,12 @@ async def start_mushaira(req: MushairaRequest):
     Returns a session_id immediately; poll /mushaira/{session_id} for results.
     """
     session_id = str(uuid.uuid4())
+    # Store user-facing session state as plain serializable values (strings for status)
     _sessions[session_id] = {
         "session_id": session_id,
         "theme": req.theme,
         "verses": [],
-        "status": "running",
+        "status": WorkflowStatus.RUNNING.value,
         "failed_poets": [],
         "error": None,
     }
@@ -163,7 +193,7 @@ async def start_mushaira(req: MushairaRequest):
     return MushairaStartResponse(
         session_id=session_id,
         theme=req.theme,
-        status="running",
+        status=WorkflowStatus.RUNNING.value,
     )
 
 
@@ -176,27 +206,44 @@ async def get_mushaira_status(session_id: str):
 
 
 async def _run_mushaira_background(session_id: str, theme: str):
+    """
+    Run the long-lived graph.invoke(...) in a thread executor so it doesn't block the event loop.
+    Update the in-memory session store with results (convert enum statuses to strings).
+    """
     trace = trace_mushaira_session(session_id, theme)
     graph = build_graph()
     state = _initial_state(session_id, theme)
     try:
         # Run in a thread so the blocking LangGraph .invoke() doesn't stall
         # the asyncio event loop
-        loop = asyncio.get_running_loop()
+        loop = asyncio.get_event_loop()
         final_state = await loop.run_in_executor(None, graph.invoke, state)
+
+        # Normalize status and update the user-facing session store
+        status_val = final_state.get("status", WorkflowStatus.COMPLETED)
         _sessions[session_id].update({
             "verses": final_state.get("verses", []),
-            "status": final_state.get("status", "completed"),
+            "status": _status_to_str(status_val),
             "failed_poets": final_state.get("failed_poets", []),
             "error": final_state.get("error"),
         })
-        trace.update(output={"verse_count": len(final_state.get("verses", []))})
+
+        try:
+            trace.update(output={"verse_count": len(final_state.get("verses", []))})
+        except Exception:
+            pass
+
     except Exception as e:
-        _sessions[session_id].update({"status": "failed", "error": str(e)})
-        trace.update(level="ERROR", status_message=str(e))
- 
+        # Record failure for pollers
+        _sessions[session_id].update({"status": WorkflowStatus.FAILED.value, "error": str(e)})
+        try:
+            trace.update(level="ERROR", status_message=str(e))
+        except Exception:
+            pass
+
+
 # ------------------------------------------------------------------ #
-# Health                                                               #
+# Health                                                             #
 # ------------------------------------------------------------------ #
 
 @app.get("/health")
