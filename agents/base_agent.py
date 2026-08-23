@@ -17,13 +17,19 @@ Key design:
 
 import json
 import time
+import logging
 from dataclasses import dataclass, field
 from typing import Optional, Dict, List, Tuple
 from anthropic import Anthropic
 
 from agents.poet_config import PoetProfile
+from infra.config import get_settings
 
-client = Anthropic()   # reads ANTHROPIC_API_KEY from env
+logger = logging.getLogger(__name__)
+
+# Initialize Anthropic client with config
+settings = get_settings()
+client = Anthropic(api_key=settings.anthropic.api_key)
 
 
 # ------------------------------------------------------------------ #
@@ -83,6 +89,7 @@ class BasePoetAgent:
         self.poet_profile = poet_profile
         self.position = position
         self.retriever = None           # injected if RAG is enabled
+        self.logger = logging.getLogger(f"{__name__}.{poet_profile.name}")
 
     # ------------------------------------------------------------------ #
     # Override in each subclass                                            #
@@ -168,9 +175,11 @@ ABSOLUTE RULES:
         last_exc: Exception = Exception("unknown")
         for attempt in range(max_retries):
             try:
+                self.logger.debug(f"Attempt {attempt + 1}/{max_retries} to compose verse")
+                
                 response = client.messages.create(
-                    model="claude-sonnet-4-20250514",
-                    max_tokens=1200,
+                    model=settings.anthropic.model,
+                    max_tokens=settings.anthropic.max_tokens,
                     system=self.system_prompt(),
                     messages=messages,
                 )
@@ -180,13 +189,16 @@ ABSOLUTE RULES:
                 data.poet_urdu_name = self.poet_profile.urdu_name
                 data.retrieved_context = retrieved
 
+                self.logger.info(f"Successfully composed {data.form}")
                 return data, raw, user_message
 
             except (json.JSONDecodeError, KeyError, ValueError) as e:
                 last_exc = e
+                self.logger.warning(f"Attempt {attempt + 1} failed: {e}")
                 if attempt < max_retries - 1:
                     time.sleep(2 ** attempt)  # 1s, 2s backoff
 
+        self.logger.error(f"Failed after {max_retries} attempts")
         raise PoetCompositionError(self.poet_profile.name, max_retries, last_exc)
 
     # ------------------------------------------------------------------ #
