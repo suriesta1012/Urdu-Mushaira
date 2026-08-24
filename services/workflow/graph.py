@@ -1,5 +1,6 @@
 import logging
 from langgraph.graph import StateGraph, END
+from langgraph.checkpoint.memory import MemorySaver
 from services.workflow.state import MushairaState
 from services.workflow.nodes import (
     accept_verse_node,
@@ -14,7 +15,7 @@ from services.workflow.edges import (
     route_after_validation,
 )
 from infra.config import get_settings
-from infra.postgres import PostgresCheckpointer
+from infra.postgres import get_postgres_checkpointer
 
 logger = logging.getLogger(__name__)
 
@@ -22,25 +23,27 @@ logger = logging.getLogger(__name__)
 _postgres_checkpointer = None
 
 
-def get_postgres_checkpointer():
-    """Get or initialize PostgreSQL checkpointer."""
+def get_or_init_checkpointer():
+    """
+    Get or initialize PostgreSQL checkpointer.
+    
+    Returns the official LangGraph PostgresSaver if enabled and available,
+    otherwise falls back to in-memory MemorySaver.
+    """
     global _postgres_checkpointer
     
     settings = get_settings()
     if not settings.postgres.enabled:
-        logger.info("PostgreSQL checkpointer disabled")
-        return None
+        logger.info("PostgreSQL checkpointer disabled, using in-memory checkpointer")
+        return MemorySaver()
     
     if _postgres_checkpointer is None:
-        try:
-            _postgres_checkpointer = PostgresCheckpointer(
-                connection_string=settings.postgres.connection_string,
-                table_name="langgraph_checkpoints"
-            )
-            logger.info(f"PostgreSQL checkpointer initialized: {settings.postgres.host}:{settings.postgres.port}")
-        except Exception as e:
-            logger.error(f"Failed to initialize PostgreSQL checkpointer: {e}")
-            return None
+        _postgres_checkpointer = get_postgres_checkpointer()
+    
+    # Fallback to in-memory checkpointer if Postgres unavailable
+    if _postgres_checkpointer is None:
+        logger.warning("Using in-memory checkpointer (session state will be lost on restart)")
+        return MemorySaver()
     
     return _postgres_checkpointer
 
@@ -51,15 +54,14 @@ def build_graph():
     
     Optionally uses PostgreSQL checkpointer for multi-session persistence
     if Postgres is enabled in config.
+    
+    The graph supports both sync (graph.invoke) and async (graph.ainvoke) execution:
+    - graph.invoke() works with the sync PostgresSaver.get/put methods
+    - graph.ainvoke() works with the async PostgresSaver.get_async/put_async methods
+    - When running graph.invoke() in a thread executor, the sync methods are used
     """
     # Try to use PostgreSQL checkpointer if available
-    checkpointer = get_postgres_checkpointer()
-    
-    # Fallback to in-memory checkpointer if Postgres unavailable
-    if checkpointer is None:
-        from langgraph.checkpoint.memory import MemorySaver
-        logger.warning("Using in-memory checkpointer (session state will be lost on restart)")
-        checkpointer = MemorySaver()
+    checkpointer = get_or_init_checkpointer()
     
     g = StateGraph(MushairaState)
     

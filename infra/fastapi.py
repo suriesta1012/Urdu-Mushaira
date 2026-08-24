@@ -63,6 +63,9 @@ def _initial_state(session_id: str, theme: str) -> MushairaState:
     Initial graph state. Use WorkflowStatus enum values for the graph runtime.
     Node-specific fields used by the workflow are included here so nodes can
     read/write them without KeyError.
+    
+    The session_id is passed to the graph and used as thread_id for checkpoint
+    persistence (via the configurable dict when calling graph.invoke).
     """
     return {
         "session_id": session_id,
@@ -120,7 +123,9 @@ async def stream_mushaira(req: MushairaRequest):
             # astream yields {"node_name": updated_state_slice} after each node
             # Verses are only committed (made visible) in the accept_verse node;
             # stream from accept_verse so clients receive complete verses.
-            async for chunk in graph.astream(state):
+            # Pass config with thread_id = session_id for checkpoint retrieval
+            config = {"configurable": {"thread_id": session_id}}
+            async for chunk in graph.astream(state, config=config):
                 # When accept_verse runs it emits the updated verses list
                 if "accept_verse" in chunk:
                     node_out = chunk["accept_verse"]
@@ -209,15 +214,25 @@ async def _run_mushaira_background(session_id: str, theme: str):
     """
     Run the long-lived graph.invoke(...) in a thread executor so it doesn't block the event loop.
     Update the in-memory session store with results (convert enum statuses to strings).
+    
+    The session_id is passed as thread_id in the graph config for checkpoint persistence.
+    This allows LangGraph's PostgresSaver to:
+    1. Save checkpoints associated with this thread_id
+    2. Retrieve previous checkpoints if resuming a workflow
+    3. Maintain session-specific state across restarts
     """
     trace = trace_mushaira_session(session_id, theme)
     graph = build_graph()
     state = _initial_state(session_id, theme)
     try:
         # Run in a thread so the blocking LangGraph .invoke() doesn't stall
-        # the asyncio event loop
+        # the asyncio event loop. The PostgresSaver's sync methods (get/put)
+        # are used during invoke() execution.
         loop = asyncio.get_event_loop()
-        final_state = await loop.run_in_executor(None, graph.invoke, state)
+        config = {"configurable": {"thread_id": session_id}}
+        final_state = await loop.run_in_executor(
+            None, lambda: graph.invoke(state, config=config)
+        )
 
         # Normalize status and update the user-facing session store
         status_val = final_state.get("status", WorkflowStatus.COMPLETED)
